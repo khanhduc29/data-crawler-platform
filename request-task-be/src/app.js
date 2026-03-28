@@ -22,8 +22,9 @@ import settingRoute from "./routes/setting.route.js";
 import apiKeyRoute from "./routes/apiKey.route.js";
 import proxyRoute from "./routes/proxy.route.js";
 import authRoute from "./routes/auth.route.js";
+import activityRoute from "./routes/activity.route.js";
 import { startStuckTaskRecovery } from "./utils/stuckTaskRecovery.js";
-import { authMiddleware, optionalAuth } from "./middleware/auth.middleware.js";
+import { authMiddleware, optionalAuth, adminOnly } from "./middleware/auth.middleware.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -41,12 +42,13 @@ app.get("/", (req, res) => {
   res.send("API is running 🚀");
 });
 
-// ===== Public routes (no auth required — used by crawler workers) =====
+// ===== Public routes (no auth required) =====
 app.use("/api/auth", authRoute);
-app.use("/api/workers", workerRoute);
-app.use("/api/proxies", proxyRoute);
-app.use("/api/dashboard", dashboardRoute);
-app.use("/api/settings", settingRoute);
+
+// ===== Worker-accessible routes (optionalAuth — workers don't have tokens) =====
+app.use("/api/workers", optionalAuth, workerRoute);
+app.use("/api/proxies", optionalAuth, proxyRoute);
+app.use("/api/settings", optionalAuth, settingRoute);
 app.use("/api/api-keys", apiKeyRoute);
 
 // ===== Tool routes (optionalAuth — FE sends token, workers don't) =====
@@ -59,8 +61,12 @@ app.use("/api/twitter", optionalAuth, twitterRoute);
 app.use("/api/chplay", optionalAuth, chplayRoute);
 app.use("/api/appstore", optionalAuth, appstoreRoute);
 
-// ===== Strictly protected routes (FE only) =====
-app.use("/api/accounts", authMiddleware, accountRoute);
+// ===== Admin-only routes (auth + admin role required) =====
+app.use("/api/dashboard", authMiddleware, adminOnly, dashboardRoute);
+app.use("/api/accounts", authMiddleware, adminOnly, accountRoute);
+
+// ===== Authenticated routes (any logged-in user) =====
+app.use("/api/activity", authMiddleware, activityRoute);
 
 const PORT = process.env.PORT || 3000;
 

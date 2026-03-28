@@ -44,8 +44,9 @@ export default function Header() {
                   ⬡ Tools
                 </button>
                 <Link href="/">Trang chủ</Link>
-                <Link href="/dashboard">📊 Dashboard</Link>
-                <Link href="/settings/accounts">Cài đặt</Link>
+                {user.role === "admin" && <Link href="/dashboard">📊 Dashboard</Link>}
+                <Link href="/activity">📋 Lịch sử</Link>
+                {user.role === "admin" && <Link href="/settings/accounts">Cài đặt</Link>}
 
                 {/* Profile avatar button */}
                 <div ref={dropdownRef} style={{ position: "relative" }}>

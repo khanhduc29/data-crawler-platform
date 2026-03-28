@@ -1,9 +1,10 @@
 import express from "express";
 import Setting from "../models/Setting.model.js";
+import { adminOnly } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
 
-// GET /api/settings — list all settings
+// GET /api/settings — list all settings (workers + admin)
 router.get("/", async (req, res) => {
   try {
     const settings = await Setting.find().lean();
@@ -15,7 +16,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-// GET /api/settings/:key — get single setting
+// GET /api/settings/:key — get single setting (workers + admin)
 router.get("/:key", async (req, res) => {
   try {
     const setting = await Setting.findOne({ key: req.params.key }).lean();
@@ -25,8 +26,8 @@ router.get("/:key", async (req, res) => {
   }
 });
 
-// PUT /api/settings/:key — upsert setting
-router.put("/:key", async (req, res) => {
+// PUT /api/settings/:key — upsert setting (admin only)
+router.put("/:key", adminOnly, async (req, res) => {
   try {
     const { value, description } = req.body;
     const setting = await Setting.findOneAndUpdate(

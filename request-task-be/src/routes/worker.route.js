@@ -6,21 +6,22 @@ import {
   listWorkers,
   workerHeartbeat,
 } from "../controllers/worker.controller.js";
+import { adminOnly } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
 
-// ─── New: Worker Registration ───
+// ─── Worker-accessible (crawlers call these without auth) ───
 router.post("/register", registerWorker);
 router.delete("/:worker_id", unregisterWorker);
 router.get("/list", listWorkers);
 router.post("/heartbeat", workerHeartbeat);
 
-// ─── Legacy: GUI worker management ───
-router.get("/", (req, res) => {
+// ─── Admin-only: GUI worker management ───
+router.get("/", adminOnly, (req, res) => {
   res.json(getWorkers());
 });
 
-router.post("/start", (req, res) => {
+router.post("/start", adminOnly, (req, res) => {
   const { name } = req.body;
 
   // mapping worker
@@ -31,7 +32,7 @@ router.post("/start", (req, res) => {
   res.json({ success: true });
 });
 
-router.post("/stop", (req, res) => {
+router.post("/stop", adminOnly, (req, res) => {
   const { name } = req.body;
   stopWorker(name);
   res.json({ success: true });

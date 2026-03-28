@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useAuth } from "@/context/AuthContext";
 
 export default function MegaMenu({ onClose }: { onClose: () => void }) {
   const [page, setPage] = useState(1);
+  const { user } = useAuth();
 
   return (
     <>
@@ -126,7 +128,8 @@ export default function MegaMenu({ onClose }: { onClose: () => void }) {
                 </Link>
               </div>
               
-              {/* Settings */}
+              {/* Settings (admin only) */}
+              {user?.role === "admin" && (
               <div className="menu-col">
                 <div className="menu-title">Cài đặt</div>
                 <Link className="menu-item" href="/settings/accounts">
@@ -137,7 +140,12 @@ export default function MegaMenu({ onClose }: { onClose: () => void }) {
                   <span className="icon">⚙</span>
                   <span className="label">Quản lý Workers</span>
                 </Link>
+                <Link className="menu-item" href="/settings/proxies">
+                  <span className="icon">🌐</span>
+                  <span className="label">Quản lý Proxy</span>
+                </Link>
               </div>
+              )}
             </div>
             
             <div className="mega-footer">

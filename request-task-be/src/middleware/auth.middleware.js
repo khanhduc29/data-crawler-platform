@@ -49,6 +49,19 @@ export function optionalAuth(req, res, next) {
 }
 
 /**
+ * Middleware: ADMIN ONLY — requires authMiddleware first, then checks role.
+ */
+export function adminOnly(req, res, next) {
+  if (!req.user || req.user.role !== "admin") {
+    return res.status(403).json({
+      success: false,
+      message: "Chỉ Admin mới có quyền truy cập",
+    });
+  }
+  next();
+}
+
+/**
  * Helper: build userId filter for queries.
  * Admin sees all, regular user sees only their data.
  */

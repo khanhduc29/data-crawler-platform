@@ -8,15 +8,19 @@ import {
   getRandomProxy,
   checkProxy,
 } from "../controllers/proxy.controller.js";
+import { adminOnly } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
 
-router.get("/", getAllProxies);
-router.post("/", createProxy);
+// Worker-accessible (no admin required)
 router.get("/random", getRandomProxy);
-router.post("/bulk-delete", bulkDeleteProxies);
-router.post("/check/:id", checkProxy);
-router.patch("/:id", updateProxy);
-router.delete("/:id", deleteProxy);
+
+// Admin-only management operations
+router.get("/", adminOnly, getAllProxies);
+router.post("/", adminOnly, createProxy);
+router.post("/bulk-delete", adminOnly, bulkDeleteProxies);
+router.post("/check/:id", adminOnly, checkProxy);
+router.patch("/:id", adminOnly, updateProxy);
+router.delete("/:id", adminOnly, deleteProxy);
 
 export default router;
