@@ -64,6 +64,8 @@ export default function GoogleMapsToolPage() {
   const [deepScanReviews, setDeepScanReviews] = useState(false);
   const [reviewLimit, setReviewLimit] = useState(20);
   const [reviewFilterStars, setReviewFilterStars] = useState<number[]>([]);
+  const [resumeFromLast, setResumeFromLast] = useState(false);
+  const [progressInfo, setProgressInfo] = useState<Record<string, number>>({});
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState("");
 
@@ -138,6 +140,7 @@ export default function GoogleMapsToolPage() {
           deep_scan_reviews: deepScanReviews,
           review_limit: deepScanReviews ? reviewLimit : 0,
           review_filter_stars: deepScanReviews ? reviewFilterStars : [],
+          resume_from_last: resumeFromLast,
         }),
       });
 
@@ -341,6 +344,54 @@ export default function GoogleMapsToolPage() {
             </div>
           )}
 
+          {/* Resume toggle */}
+          <div style={{ marginTop: 8, padding: "12px 16px", borderRadius: 10, background: "rgba(99,102,241,0.06)", border: "1px solid rgba(99,102,241,0.15)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: progressInfo && Object.keys(progressInfo).length > 0 && resumeFromLast ? 10 : 0 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 14, fontWeight: 600, color: resumeFromLast ? "#818CF8" : "#94A3B8" }}>
+                <input
+                  type="checkbox"
+                  checked={resumeFromLast}
+                  onChange={async (e) => {
+                    const checked = e.target.checked;
+                    setResumeFromLast(checked);
+                    if (checked && keyword.trim() && address.trim()) {
+                      try {
+                        const encoded = encodeURIComponent(keyword);
+                        const encodedAddr = encodeURIComponent(address);
+                        const res = await authFetch(`${API}/google-map/progress?keyword=${encoded}&address=${encodedAddr}`);
+                        const json = await res.json();
+                        if (json.success && json.data) {
+                          const map: Record<string, number> = {};
+                          json.data.forEach((p: any) => { map[p.keyword] = p.total_collected; });
+                          setProgressInfo(map);
+                        }
+                      } catch { /* ignore */ }
+                    } else {
+                      setProgressInfo({});
+                    }
+                  }}
+                  style={{ width: 16, height: 16, accentColor: "#818CF8" }}
+                />
+                ⏩ Quét tiếp từ lần cuối
+              </label>
+              <span style={{ fontSize: 12, color: "#64748B" }}>(bỏ qua kết quả đã quét trước)</span>
+            </div>
+            {resumeFromLast && Object.keys(progressInfo).length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {Object.entries(progressInfo).map(([kw, count]) => (
+                  <span key={kw} style={{
+                    padding: "4px 10px", borderRadius: 8, fontSize: 12, fontWeight: 600,
+                    background: "rgba(99,102,241,0.1)", color: "#A5B4FC", border: "1px solid rgba(99,102,241,0.2)",
+                  }}>
+                    &quot;{kw}&quot;: đã quét {count} → sẽ tiếp từ {count + 1}
+                  </span>
+                ))}
+              </div>
+            )}
+            {resumeFromLast && Object.keys(progressInfo).length === 0 && keyword.trim() && (
+              <div style={{ fontSize: 12, color: "#64748B" }}>Chưa có dữ liệu quét trước — sẽ quét từ đầu</div>
+            )}
+          </div>
           <button className="btn-submit" onClick={createJob} disabled={isCreating}>
             {isCreating ? "⏳ Đang tạo job..." : "🔍 Bắt đầu quét"}
           </button>

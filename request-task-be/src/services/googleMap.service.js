@@ -1,5 +1,6 @@
 import GoogleMapJob from "../models/GoogleMapJob.model.js";
 import GoogleMapTask from "../models/GoogleMapTask.model.js";
+import CrawlProgress from "../models/CrawlProgress.model.js";
 import { assignWorkersRoundRobin } from "../utils/assignWorker.js";
 
 export async function createGoogleMapJob(data) {
@@ -37,24 +38,44 @@ export async function createGoogleMapJob(data) {
   const baseLimit = Math.floor(totalLimit / keywords.length);
   const remain = totalLimit % keywords.length;
 
-  const tasks = keywords.map((keyword, index) => ({
-    job_id: job._id,
-    keyword,
-    address: data.address,
-    region: data.region,
+  // 4️⃣ Nếu resume_from_last → lấy progress cho mỗi keyword
+  const resumeMode = data.resume_from_last === true;
 
-    // 👉 keyword đầu ăn phần dư
-    result_limit: index === 0 ? baseLimit + remain : baseLimit,
+  const tasks = [];
+  for (let index = 0; index < keywords.length; index++) {
+    const keyword = keywords[index];
+    let skipCount = 0;
 
-    delay_seconds: data.delay_seconds,
-    deep_scan: data.deep_scan,
-    deep_scan_website: data.deep_scan_website,
-    deep_scan_reviews: data.deep_scan_reviews,
-    review_limit: data.review_limit,
-    review_filter_stars: data.review_filter_stars || [],
-  }));
+    if (resumeMode && data.userId) {
+      const progress = await CrawlProgress.findOne({
+        userId: data.userId,
+        tool: "google-map",
+        keyword: keyword,
+        address: data.address || "",
+      });
+      if (progress) {
+        skipCount = progress.total_collected || 0;
+        console.log(`[Resume] keyword="${keyword}" → skip_count=${skipCount}`);
+      }
+    }
 
-  // 4️⃣ tạo task
+    tasks.push({
+      job_id: job._id,
+      keyword,
+      address: data.address,
+      region: data.region,
+      result_limit: index === 0 ? baseLimit + remain : baseLimit,
+      delay_seconds: data.delay_seconds,
+      deep_scan: data.deep_scan,
+      deep_scan_website: data.deep_scan_website,
+      deep_scan_reviews: data.deep_scan_reviews,
+      review_limit: data.review_limit,
+      review_filter_stars: data.review_filter_stars || [],
+      skip_count: skipCount,
+    });
+  }
+
+  // 5️⃣ tạo task
   await assignWorkersRoundRobin("google-map", tasks);
   const createdTasks = await GoogleMapTask.insertMany(tasks);
 

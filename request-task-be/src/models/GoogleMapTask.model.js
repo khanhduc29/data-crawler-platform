@@ -82,6 +82,8 @@ const GoogleMapTaskSchema = new mongoose.Schema(
       index: true,
     },
 
+    skip_count: { type: Number, default: 0 },
+
     retry_count: { type: Number, default: 0 },
     max_retries: { type: Number, default: 3 },
     last_error: { type: String, default: null },

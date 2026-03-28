@@ -2,6 +2,7 @@ import { createGoogleMapJob } from "../services/googleMap.service.js";
 import GoogleMapTask from "../models/GoogleMapTask.model.js";
 import GoogleMapJobModel from "../models/GoogleMapJob.model.js";
 import GoogleMapTaskModel from "../models/GoogleMapTask.model.js";
+import CrawlProgress from "../models/CrawlProgress.model.js";
 import { syncRequestStatus } from "../utils/syncRequestStatus.js";
 import { incrementWorkerTaskCount } from "../utils/incrementWorkerTaskCount.js";
 import { getUserFilter } from "../middleware/auth.middleware.js";
@@ -175,6 +176,32 @@ export async function updateGoogleMapTask(req, res) {
       await syncRequestStatus(GoogleMapTask, GoogleMapJobModel, "job_id", task.job_id);
     }
 
+    // 📊 Save crawl progress (for resume-from-last feature)
+    if (status === "success" && task.result && Array.isArray(task.result)) {
+      try {
+        // Lấy userId từ parent job
+        const job = await GoogleMapJobModel.findById(task.job_id).lean();
+        if (job?.userId) {
+          await CrawlProgress.findOneAndUpdate(
+            {
+              userId: job.userId,
+              tool: "google-map",
+              keyword: task.keyword,
+              address: task.address || "",
+            },
+            {
+              $inc: { total_collected: task.result.length },
+              last_task_id: task._id,
+            },
+            { upsert: true, new: true }
+          );
+          console.log(`[Progress] google-map | "${task.keyword}" → +${task.result.length} collected`);
+        }
+      } catch (progressErr) {
+        console.error(`[Progress] Error saving progress:`, progressErr.message);
+      }
+    }
+
     res.json({
       success: true,
       data: task,
@@ -323,6 +350,69 @@ export async function resetStuckTasks(req, res) {
       success: true,
       message: `Reset ${totalReset} stuck tasks`,
       data: { reset_count: totalReset },
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+}
+
+/**
+ * GET /api/google-map/progress?keyword=xxx&address=yyy
+ * Lấy tiến trình quét cho keyword + address (dùng cho resume toggle)
+ */
+export async function getCrawlProgress(req, res) {
+  try {
+    const { keyword, address } = req.query;
+    const userId = req.user?.id;
+
+    if (!keyword) {
+      return res.json({ success: true, data: [] });
+    }
+
+    // Tách keywords (giống service)
+    const keywords = keyword.split("\n").map(k => k.trim()).filter(Boolean);
+
+    const progressList = await CrawlProgress.find({
+      userId,
+      tool: "google-map",
+      keyword: { $in: keywords },
+      address: address || "",
+    }).lean();
+
+    res.json({
+      success: true,
+      data: progressList,
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+}
+
+/**
+ * DELETE /api/google-map/progress
+ * Reset tiến trình quét cho keyword + address
+ */
+export async function resetCrawlProgress(req, res) {
+  try {
+    const { keyword, address } = req.body;
+    const userId = req.user?.id;
+
+    const result = await CrawlProgress.deleteMany({
+      userId,
+      tool: "google-map",
+      ...(keyword ? { keyword } : {}),
+      ...(address !== undefined ? { address } : {}),
+    });
+
+    res.json({
+      success: true,
+      message: `Đã reset ${result.deletedCount} progress records`,
     });
   } catch (err) {
     res.status(500).json({
