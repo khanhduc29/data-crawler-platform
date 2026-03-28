@@ -122,3 +122,35 @@ export async function getAccountById(req, res) {
     res.status(500).json({ success: false, message: err.message });
   }
 }
+
+/**
+ * GET /api/accounts/platform/:platform/random
+ * Lấy 1 account active ngẫu nhiên theo platform (cho worker/crawler gọi)
+ * Trả về đầy đủ cookies + password (KHÔNG mask)
+ */
+export async function getRandomAccountByPlatform(req, res) {
+  try {
+    const { platform } = req.params;
+
+    const count = await SocialAccount.countDocuments({ platform, status: "active" });
+
+    if (count === 0) {
+      return res.json({
+        success: true,
+        data: null,
+        message: `No active ${platform} account`,
+      });
+    }
+
+    const random = Math.floor(Math.random() * count);
+    const account = await SocialAccount.findOne({ platform, status: "active" })
+      .skip(random)
+      .lean();
+
+    console.log(`[Account] 🎯 Random ${platform} account: @${account?.username}`);
+
+    res.json({ success: true, data: account });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+}

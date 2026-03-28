@@ -49,6 +49,7 @@ app.use("/api/auth", authRoute);
 app.use("/api/workers", optionalAuth, workerRoute);
 app.use("/api/proxies", optionalAuth, proxyRoute);
 app.use("/api/settings", optionalAuth, settingRoute);
+app.use("/api/accounts", optionalAuth, accountRoute);
 app.use("/api/api-keys", apiKeyRoute);
 
 // ===== Tool routes (optionalAuth — FE sends token, workers don't) =====
@@ -63,7 +64,6 @@ app.use("/api/appstore", optionalAuth, appstoreRoute);
 
 // ===== Admin-only routes (auth + admin role required) =====
 app.use("/api/dashboard", authMiddleware, adminOnly, dashboardRoute);
-app.use("/api/accounts", authMiddleware, adminOnly, accountRoute);
 
 // ===== Authenticated routes (any logged-in user) =====
 app.use("/api/activity", authMiddleware, activityRoute);
