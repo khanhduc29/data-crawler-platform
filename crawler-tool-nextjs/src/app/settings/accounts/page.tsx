@@ -61,6 +61,9 @@ export default function AccountSettingsPage() {
   const [filter, setFilter] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [showCookies, setShowCookies] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
+  const [checkingId, setCheckingId] = useState<string | null>(null);
+  const [checkResult, setCheckResult] = useState<Record<string, { valid: boolean; message: string } | null>>({});
 
   const flash = (text: string, type: "ok" | "err" = "ok") => {
     setMsg(text);
@@ -126,6 +129,30 @@ export default function AccountSettingsPage() {
       const json = await res.json();
       if (json.success) { flash("🗑 Đã xóa!"); fetchAccounts(); }
     } catch { flash("❌ Lỗi xóa", "err"); }
+  };
+
+  const handleCheck = async (id: string) => {
+    setCheckingId(id);
+    setCheckResult((prev) => ({ ...prev, [id]: null }));
+    try {
+      const res = await authFetch(`${API}/accounts/${id}/check`, { method: "POST" });
+      const json = await res.json();
+      if (json.success) {
+        setCheckResult((prev) => ({ ...prev, [id]: { valid: json.valid, message: json.message } }));
+        if (json.valid) {
+          flash(`✅ @${json.username}: ${json.message}`);
+        } else {
+          flash(`⚠️ @${json.username}: ${json.message}`, "err");
+          fetchAccounts(); // refresh to show updated status
+        }
+      } else {
+        flash(`❌ ${json.message}`, "err");
+      }
+    } catch (err: any) {
+      flash(`❌ Check failed: ${err?.message}`, "err");
+    } finally {
+      setCheckingId(null);
+    }
   };
 
   const handleCancel = () => {
@@ -352,7 +379,20 @@ export default function AccountSettingsPage() {
                   <td style={{ padding: "10px 12px", color: "#94A3B8", fontSize: 13 }}>{acc.label || "—"}</td>
                   {/* Actions */}
                   <td style={{ padding: "10px 12px", textAlign: "center", borderRadius: "0 8px 8px 0" }}>
-                    <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
+                    <div style={{ display: "flex", gap: 6, justifyContent: "center", flexWrap: "wrap" }}>
+                      {acc.cookies && (
+                        <button
+                          onClick={() => handleCheck(acc._id)}
+                          disabled={checkingId === acc._id}
+                          style={{
+                            padding: "4px 10px", borderRadius: 6, fontSize: 12, cursor: "pointer",
+                            border: "1px solid rgba(34,197,94,0.3)", background: "rgba(34,197,94,0.1)", color: "#4ade80",
+                            opacity: checkingId === acc._id ? 0.6 : 1,
+                          }}
+                        >
+                          {checkingId === acc._id ? "⏳..." : "🔍 Check"}
+                        </button>
+                      )}
                       <button onClick={() => handleEdit(acc)} style={{
                         padding: "4px 10px", borderRadius: 6, fontSize: 12, cursor: "pointer",
                         border: "1px solid rgba(59,130,246,0.3)", background: "rgba(59,130,246,0.1)", color: "#60A5FA",
@@ -362,6 +402,14 @@ export default function AccountSettingsPage() {
                         border: "1px solid rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.1)", color: "#f87171",
                       }}>🗑</button>
                     </div>
+                    {checkResult[acc._id] && (
+                      <div style={{
+                        marginTop: 4, fontSize: 11, fontWeight: 600,
+                        color: checkResult[acc._id]?.valid ? "#4ade80" : "#fbbf24",
+                      }}>
+                        {checkResult[acc._id]?.valid ? "✅" : "⚠️"} {checkResult[acc._id]?.message}
+                      </div>
+                    )}
                   </td>
                 </tr>
               );
@@ -372,17 +420,77 @@ export default function AccountSettingsPage() {
 
       {/* Hướng dẫn cookie */}
       <div style={{
-        marginTop: 24, padding: 16, borderRadius: 12,
-        background: "rgba(15,23,42,0.5)", border: "1px solid rgba(255,255,255,0.06)",
+        marginTop: 24, borderRadius: 12,
+        background: "rgba(15,23,42,0.5)", border: "1px solid rgba(139,92,246,0.15)",
+        overflow: "hidden",
       }}>
-        <h4 style={{ margin: "0 0 8px", color: "#A78BFA", fontSize: 14 }}>📋 Cách lấy cookie cho crawler</h4>
-        <ol style={{ margin: 0, paddingLeft: 20, color: "#94A3B8", fontSize: 13, lineHeight: 1.8 }}>
-          <li>Mở Chrome → đăng nhập vào nền tảng (x.com, tiktok.com, ...)</li>
-          <li>Nhấn <strong>F12</strong> → DevTools → tab <strong>Application</strong></li>
-          <li>Bên trái: <strong>Cookies</strong> → chọn domain</li>
-          <li>Copy giá trị <strong>auth_token</strong> (Twitter) hoặc cookie quan trọng</li>
-          <li>Paste vào trường Cookie khi thêm/sửa tài khoản</li>
-        </ol>
+        <button
+          onClick={() => setShowGuide(!showGuide)}
+          style={{
+            width: "100%", textAlign: "left", padding: "14px 20px",
+            background: "none", border: "none", cursor: "pointer",
+            color: "#A78BFA", fontSize: 15, fontWeight: 700,
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+          }}
+        >
+          <span>📖 Hướng dẫn lấy Cookie / Session cho Crawler</span>
+          <span style={{ fontSize: 12, color: "#64748B" }}>{showGuide ? "▲ Ẩn" : "▼ Xem"}</span>
+        </button>
+
+        {showGuide && (
+          <div style={{ padding: "0 20px 20px", color: "#94A3B8", fontSize: 13, lineHeight: 1.9 }}>
+
+            {/* Cách 1: TikTok — login_debug.py */}
+            <div style={{ marginBottom: 20, padding: 16, borderRadius: 10, background: "rgba(255,0,80,0.06)", border: "1px solid rgba(255,0,80,0.15)" }}>
+              <h4 style={{ margin: "0 0 10px", color: "#FF0050", fontSize: 14 }}>🎵 TikTok — Cách 1: Dùng login_debug.py (Khuyên dùng)</h4>
+              <ol style={{ margin: 0, paddingLeft: 20 }}>
+                <li>Mở terminal, vào thư mục <strong>tiktok-crawler</strong></li>
+                <li>Chạy: <code style={{ background: "rgba(0,0,0,0.3)", padding: "2px 8px", borderRadius: 4, color: "#E2E8F0" }}>python login_debug.py</code></li>
+                <li>Trình duyệt mở ra → <strong>Đăng nhập TikTok thủ công</strong></li>
+                <li>Sau khi đăng nhập xong → quay lại terminal → <strong>bấm Enter</strong></li>
+                <li>File <code style={{ background: "rgba(0,0,0,0.3)", padding: "2px 8px", borderRadius: 4, color: "#E2E8F0" }}>tiktok_session.json</code> được tạo ra</li>
+                <li>Mở file đó → <strong>Copy toàn bộ nội dung</strong> → Paste vào trường Cookie ở đây</li>
+              </ol>
+              <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 6, background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.2)", color: "#4ade80", fontSize: 12, fontWeight: 600 }}>
+                💡 Đây là cách tốt nhất vì export đầy đủ cookies + localStorage, session sống lâu nhất
+              </div>
+            </div>
+
+            {/* Cách 2: DevTools */}
+            <div style={{ marginBottom: 20, padding: 16, borderRadius: 10, background: "rgba(99,102,241,0.06)", border: "1px solid rgba(99,102,241,0.15)" }}>
+              <h4 style={{ margin: "0 0 10px", color: "#818CF8", fontSize: 14 }}>🔧 Cách 2: Export từ Chrome DevTools (mọi nền tảng)</h4>
+              <ol style={{ margin: 0, paddingLeft: 20 }}>
+                <li>Mở Chrome → đăng nhập vào nền tảng (tiktok.com, x.com, ...)</li>
+                <li>Nhấn <strong>F12</strong> → DevTools → tab <strong>Console</strong></li>
+                <li>Gõ: <code style={{ background: "rgba(0,0,0,0.3)", padding: "2px 8px", borderRadius: 4, color: "#E2E8F0" }}>document.cookie</code> → Enter</li>
+                <li><strong>Copy kết quả</strong> → Paste vào trường Cookie ở đây</li>
+              </ol>
+              <div style={{ marginTop: 10, fontSize: 12, color: "#64748B" }}>
+                ⚠️ Cách này chỉ lấy được cookies, không có localStorage → session có thể ngắn hơn
+              </div>
+            </div>
+
+            {/* Cách 3: Extension */}
+            <div style={{ padding: 16, borderRadius: 10, background: "rgba(234,179,8,0.06)", border: "1px solid rgba(234,179,8,0.15)" }}>
+              <h4 style={{ margin: "0 0 10px", color: "#EAB308", fontSize: 14 }}>🧩 Cách 3: Dùng Extension &quot;EditThisCookie&quot; hoặc &quot;Cookie Editor&quot;</h4>
+              <ol style={{ margin: 0, paddingLeft: 20 }}>
+                <li>Cài extension <strong>Cookie Editor</strong> từ Chrome Web Store</li>
+                <li>Đăng nhập nền tảng → click icon extension</li>
+                <li>Bấm <strong>Export</strong> (JSON) → Copy</li>
+                <li>Paste vào trường Cookie ở đây</li>
+              </ol>
+              <div style={{ marginTop: 10, fontSize: 12, color: "#64748B" }}>
+                ✅ Hỗ trợ export JSON array — tương thích tốt với hệ thống
+              </div>
+            </div>
+
+            {/* Check guide */}
+            <div style={{ marginTop: 16, padding: "10px 14px", borderRadius: 8, background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.2)" }}>
+              <strong style={{ color: "#4ade80" }}>🔍 Kiểm tra cookies:</strong>{" "}
+              <span>Sau khi thêm tài khoản, bấm nút <strong>&quot;🔍 Check&quot;</strong> để kiểm tra cookies còn hợp lệ không. Nếu hết hạn, hệ thống sẽ tự chuyển trạng thái sang &quot;Expired&quot;.</span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
