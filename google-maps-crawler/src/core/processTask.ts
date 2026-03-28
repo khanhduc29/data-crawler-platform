@@ -143,7 +143,8 @@ export async function processTask(task: CrawlTask) {
      */
     const results = await crawlWithAutoScroll(
       page,
-      task.result_limit
+      task.result_limit,
+      task.skip_count || 0
     );
 
     checkTimeout();

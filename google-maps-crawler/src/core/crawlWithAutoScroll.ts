@@ -13,16 +13,23 @@ function randomDelay(min: number, max: number): number {
  * Crawl Google Maps LIST (CARD ONLY)
  * - Scroll incremental + random delay
  * - Stuck detection tăng lên 5 rounds
+ * - skipCount: bỏ qua N kết quả đầu (dùng cho resume crawling)
  */
 export async function crawlWithAutoScroll(
   page: Page,
-  limit: number
+  limit: number,
+  skipCount: number = 0
 ): Promise<Place[]> {
   const results: Place[] = [];
   const seenUrls = new Set<string>();
 
   let stuckRounds = 0;
   const MAX_STUCK = 5;
+  let skipped = 0;
+
+  if (skipCount > 0) {
+    console.log(`⏩ Resume mode: skipping first ${skipCount} results`);
+  }
 
   while (results.length < limit) {
     console.log(`🔄 Loop | current=${results.length}/${limit}`);
@@ -82,9 +89,18 @@ export async function crawlWithAutoScroll(
         if (!place?.name) continue;
 
         place.url = href;
+        seenUrls.add(href);
+
+        // ⏩ Skip nếu đang trong resume mode
+        if (skipped < skipCount) {
+          skipped++;
+          if (skipped % 50 === 0 || skipped === skipCount) {
+            console.log(`⏩ Skipped ${skipped}/${skipCount}`);
+          }
+          continue;
+        }
 
         results.push(place);
-        seenUrls.add(href);
         newFoundThisRound++;
 
         console.log(`✅ ${results.length}. ${place.name}`);

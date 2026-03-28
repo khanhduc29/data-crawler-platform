@@ -38,6 +38,7 @@ export type CrawlTask = {
 
   result?: Place[];
   error_message?: string;
+  skip_count?: number;
 
   created_at: string;
   updated_at?: string;         // ✅ thêm cho đầy đủ
