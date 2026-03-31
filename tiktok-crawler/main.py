@@ -24,6 +24,7 @@ from core.anti_block import random_delay
 from api.tiktok_api import fetch_pending_task, update_task_status
 from dispatch.scan_dispatcher import dispatch_scan
 from core.captcha_solver import handle_captcha_if_present
+from crawlers.scan_top_posts import CaptchaBlockedError
 
 logger = setup_logger()
 
@@ -123,6 +124,11 @@ async def main():
                         logger.error(f"⏰ TASK TIMEOUT (attempt {attempt + 1}/{MAX_RETRIES})")
                         _flog(f"TIMEOUT attempt={attempt + 1} — task_id={task_id}")
 
+                    except CaptchaBlockedError as e:
+                        last_error = f"CAPTCHA: {e}"
+                        logger.warning(f"🔒 CAPTCHA BLOCKED (attempt {attempt + 1}/{MAX_RETRIES}) — sẽ đổi proxy và thử lại")
+                        _flog(f"CAPTCHA attempt={attempt + 1}")
+
                     except Exception as e:
                         last_error = f"{type(e).__name__}: {e}"
                         tb = traceback.format_exc()
@@ -149,11 +155,13 @@ async def main():
                         context = None
                         playwright = None
 
-                    # Nếu còn retry → đợi backoff
+                    # Nếu còn retry → đợi backoff (longer delay for captcha)
                     if attempt < MAX_RETRIES - 1:
-                        delay = RETRY_DELAYS[min(attempt, len(RETRY_DELAYS) - 1)]
-                        logger.info(f"🔄 Retry {attempt + 2}/{MAX_RETRIES} in {delay}s...")
-                        _flog(f"RETRY WAIT {delay}s")
+                        is_captcha = last_error and last_error.startswith("CAPTCHA")
+                        delay = 45 if is_captcha else RETRY_DELAYS[min(attempt, len(RETRY_DELAYS) - 1)]
+                        reason = "captcha → đổi proxy" if is_captcha else "error"
+                        logger.info(f"🔄 Retry {attempt + 2}/{MAX_RETRIES} in {delay}s... ({reason})")
+                        _flog(f"RETRY WAIT {delay}s ({reason})")
                         await asyncio.sleep(delay)
 
                 # Sau retry loop: nếu vẫn lỗi → báo error lên backend

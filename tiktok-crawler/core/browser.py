@@ -3,6 +3,7 @@ import json
 from playwright.async_api import async_playwright
 from core.anti_block import get_random_ua
 from core.proxy_helper import fetch_random_proxy, get_playwright_proxy
+from core.stealth import inject_stealth_to_context
 
 API_BASE = os.environ.get("API_BASE_URL", "http://localhost:3000")
 
@@ -112,6 +113,15 @@ async def create_browser(headless=True):
         "args": [
             "--disable-blink-features=AutomationControlled",
             "--no-sandbox",
+            "--disable-infobars",
+            "--disable-dev-shm-usage",
+            "--disable-background-networking",
+            "--disable-default-apps",
+            "--disable-extensions",
+            "--disable-sync",
+            "--disable-translate",
+            "--metrics-recording-only",
+            "--no-first-run",
         ],
     }
     if proxy_config:
@@ -157,6 +167,9 @@ async def create_browser(headless=True):
         print("[BROWSER] ⚠️ No backend cookies — running without login", flush=True)
 
     context = await browser.new_context(**context_kwargs)
+
+    # 🛡️ Inject stealth scripts — chống phát hiện bot
+    await inject_stealth_to_context(context)
 
     # Inject cookies nếu dùng backend account (non-storage_state format)
     if use_backend_cookies and "storage_state" not in context_kwargs:

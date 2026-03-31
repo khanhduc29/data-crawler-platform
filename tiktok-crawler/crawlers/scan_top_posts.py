@@ -5,10 +5,15 @@ import csv
 import os
 import random
 from core.logger import setup_logger
-from core.captcha_solver import handle_captcha_if_present
+from core.captcha_solver import detect_captcha
 
 logger = setup_logger()
 DATA_DIR = "data"
+
+
+class CaptchaBlockedError(Exception):
+    """Raised when captcha is detected — triggers proxy rotation + retry"""
+    pass
 
 
 # =========================
@@ -114,35 +119,33 @@ async def extract_top_videos(page, keyword, limit):
 
     await page.goto(url, timeout=60000, wait_until="domcontentloaded")
 
-    # Chờ video links xuất hiện
+    # Chờ video links xuất hiện — tăng timeout và hỗ trợ hidden elements
+    video_found = False
+
+    # Lần 1: chờ visible (bình thường)
     try:
-        await page.wait_for_selector("a[href*='/video/']", timeout=15000)
+        await page.wait_for_selector("a[href*='/video/']", timeout=20000)
+        video_found = True
         logger.info("✅ Video links found on page")
     except Exception:
-        # Có thể là CAPTCHA — thử giải
-        logger.warning("⚠️ No video links found — checking for captcha...")
+        pass
 
-        captcha_solved = await handle_captcha_if_present(page)
-        if captcha_solved:
-            logger.info("🔓 Captcha handled — reloading search page...")
-            await page.goto(url, timeout=60000, wait_until="domcontentloaded")
-            try:
-                await page.wait_for_selector("a[href*='/video/']", timeout=15000)
-                logger.info("✅ Video links found after captcha solve!")
-            except Exception:
-                page_title = await page.title()
-                # Chụp screenshot để debug
-                try:
-                    await page.screenshot(path="debug_tiktok_search.png")
-                    logger.info("📸 Screenshot saved: debug_tiktok_search.png")
-                except Exception:
-                    pass
-                raise Exception(f"No video links found even after captcha solve. Page title: '{page_title}'.")
-        else:
-            page_title = await page.title()
-            page_url = page.url
-            logger.error(f"❌ No video links found! page_title='{page_title}' page_url='{page_url}'")
+    # Lần 2: nếu không visible, thử kiểm tra có attached nhưng bị ẩn (captcha overlay)
+    if not video_found:
+        try:
+            count = await page.locator("a[href*='/video/']").count()
+            if count > 0:
+                logger.warning(f"⚠️ Found {count} video links but HIDDEN (likely captcha overlay)")
+            else:
+                logger.warning("⚠️ No video links found at all")
+        except Exception:
+            pass
 
+        # Kiểm tra captcha
+        logger.warning("🔒 Checking for captcha...")
+        captcha_detected = await detect_captcha(page)
+
+        if captcha_detected:
             # Chụp screenshot để debug
             try:
                 await page.screenshot(path="debug_tiktok_search.png")
@@ -150,7 +153,25 @@ async def extract_top_videos(page, keyword, limit):
             except Exception:
                 pass
 
-            raise Exception(f"No video links found on TikTok search. Page title: '{page_title}'. Possible CAPTCHA/login wall.")
+            # Raise error cụ thể → main.py sẽ đổi proxy & retry
+            raise CaptchaBlockedError(f"Captcha detected on search page for '{keyword}'")
+
+        # Không có captcha nhưng vẫn không thấy video → thử reload
+        logger.info("🔄 No captcha detected — trying page reload...")
+        await page.reload(wait_until="domcontentloaded")
+        await page.wait_for_timeout(3000)
+
+        try:
+            await page.wait_for_selector("a[href*='/video/']", timeout=15000)
+            video_found = True
+            logger.info("✅ Video links found after reload!")
+        except Exception:
+            page_title = await page.title()
+            try:
+                await page.screenshot(path="debug_tiktok_search.png")
+            except Exception:
+                pass
+            raise Exception(f"No video links found on TikTok search. Page title: '{page_title}'.")
 
     results = []
     seen = set()
