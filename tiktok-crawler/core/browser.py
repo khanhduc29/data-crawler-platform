@@ -100,7 +100,7 @@ def parse_cookies_string(cookies_str):
     return cookies
 
 
-async def create_browser(headless=True, session_file=None):
+async def create_browser(headless=True):
     playwright = await async_playwright().start()
 
     # 🌐 Fetch random proxy from backend
@@ -127,7 +127,7 @@ async def create_browser(headless=True, session_file=None):
         "viewport": {"width": 1280, "height": 800},
     }
 
-    # 🔑 Lấy tài khoản TikTok từ backend
+    # 🔑 Lấy tài khoản TikTok từ backend (CHỈ dùng cookies từ backend)
     account = fetch_tiktok_account()
     use_backend_cookies = False
 
@@ -139,7 +139,6 @@ async def create_browser(headless=True, session_file=None):
                 parsed = json.loads(account["cookies"])
                 if isinstance(parsed, dict) and "cookies" in parsed:
                     # Full Playwright storage_state → load trực tiếp
-                    # Save to temp file for storage_state param
                     import tempfile
                     tmp = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8')
                     json.dump(parsed, tmp, ensure_ascii=False)
@@ -154,30 +153,8 @@ async def create_browser(headless=True, session_file=None):
                 # Sẽ inject cookies SAU khi tạo context
                 use_backend_cookies = True
                 print(f"[ACCOUNT] 🍪 Will inject {len(cookies)} cookies from backend account @{account.get('username')}", flush=True)
-
-    # Fallback: dùng local session file
-    if not use_backend_cookies and session_file:
-        import os as _os
-        import time
-        if _os.path.exists(session_file):
-            try:
-                file_age_days = (time.time() - _os.path.getmtime(session_file)) / 86400
-                with open(session_file, "r", encoding="utf-8") as f:
-                    session_data = json.load(f)
-
-                cookie_count = len(session_data.get("cookies", []))
-                print(f"[SESSION] Fallback to local file {session_file}: {cookie_count} cookies, age={file_age_days:.1f} days", flush=True)
-
-                if file_age_days > 30:
-                    print(f"[SESSION] WARNING: Session is {file_age_days:.0f} days old!", flush=True)
-
-                if cookie_count > 0:
-                    context_kwargs["storage_state"] = session_file
-
-            except (json.JSONDecodeError, KeyError, OSError) as e:
-                print(f"[SESSION] ERROR: Invalid session file: {e}", flush=True)
-        else:
-            print(f"[SESSION] No local session file — running without login", flush=True)
+    else:
+        print("[BROWSER] ⚠️ No backend cookies — running without login", flush=True)
 
     context = await browser.new_context(**context_kwargs)
 

@@ -83,7 +83,7 @@ export default function AccountSettingsPage() {
   useEffect(() => { fetchAccounts(); }, [fetchAccounts]);
 
   const handleSubmit = async () => {
-    if (!form.username.trim()) { flash("Username là bắt buộc", "err"); return; }
+    if (!form.username.trim() && !form.cookies.trim()) { flash("Username hoặc Cookie là bắt buộc", "err"); return; }
     setLoading(true);
     try {
       const url = editId ? `${API}/accounts/${editId}` : `${API}/accounts`;
@@ -239,8 +239,8 @@ export default function AccountSettingsPage() {
           {/* Username + Email */}
           <div className="form-row">
             <div className="form-group">
-              <label>Username <span style={{ color: "#EF4444" }}>*</span></label>
-              <input value={form.username} onChange={e => setForm({ ...form, username: e.target.value })} placeholder="@username" />
+              <label>Username {!form.cookies.trim() && <span style={{ color: "#EF4444" }}>*</span>}</label>
+              <input value={form.username} onChange={e => setForm({ ...form, username: e.target.value })} placeholder={form.cookies.trim() ? "(tự động lấy từ cookie nếu bỏ trống)" : "@username"} />
             </div>
             <div className="form-group">
               <label>Email</label>
@@ -456,23 +456,41 @@ export default function AccountSettingsPage() {
               </div>
             </div>
 
-            {/* Cách 2: DevTools */}
+            {/* Cách 2: F12 Network — Doc — Copy Cookie (⭐ Khuyên dùng cho TikTok) */}
+            <div style={{ marginBottom: 20, padding: 16, borderRadius: 10, background: "rgba(255,0,80,0.06)", border: "1px solid rgba(255,0,80,0.15)" }}>
+              <h4 style={{ margin: "0 0 10px", color: "#FF0050", fontSize: 14 }}>🌐 Cách 2: F12 → Network → Copy Cookie (⭐ Khuyên dùng)</h4>
+              <ol style={{ margin: 0, paddingLeft: 20 }}>
+                <li>Mở Chrome → đăng nhập <strong>tiktok.com</strong> (hoặc x.com, instagram.com...)</li>
+                <li>Nhấn <strong>F12</strong> → mở DevTools → chọn tab <strong>Network</strong></li>
+                <li>Ở thanh filter phía trên, chọn <strong>Doc</strong> (hoặc <strong>Document</strong>)</li>
+                <li>Nhấn <strong>F5</strong> để reload trang — sẽ thấy 1 request xuất hiện (ví dụ: <code style={{ background: "rgba(0,0,0,0.3)", padding: "2px 8px", borderRadius: 4, color: "#E2E8F0" }}>www.tiktok.com</code>)</li>
+                <li>Click vào request đó → chọn tab <strong>Headers</strong></li>
+                <li>Kéo xuống phần <strong>Request Headers</strong> → tìm dòng <strong>Cookie:</strong></li>
+                <li>Click chuột phải vào giá trị cookie → <strong>Copy value</strong></li>
+                <li>Paste vào trường Cookie ở đây</li>
+              </ol>
+              <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 6, background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.2)", color: "#4ade80", fontSize: 12, fontWeight: 600 }}>
+                💡 Cách này lấy được <strong>đầy đủ cookies</strong> bao gồm httpOnly — tốt hơn document.cookie rất nhiều!
+              </div>
+            </div>
+
+            {/* Cách 3: DevTools Console */}
             <div style={{ marginBottom: 20, padding: 16, borderRadius: 10, background: "rgba(99,102,241,0.06)", border: "1px solid rgba(99,102,241,0.15)" }}>
-              <h4 style={{ margin: "0 0 10px", color: "#818CF8", fontSize: 14 }}>🔧 Cách 2: Export từ Chrome DevTools (mọi nền tảng)</h4>
+              <h4 style={{ margin: "0 0 10px", color: "#818CF8", fontSize: 14 }}>🔧 Cách 3: DevTools Console — document.cookie</h4>
               <ol style={{ margin: 0, paddingLeft: 20 }}>
                 <li>Mở Chrome → đăng nhập vào nền tảng (tiktok.com, x.com, ...)</li>
                 <li>Nhấn <strong>F12</strong> → DevTools → tab <strong>Console</strong></li>
                 <li>Gõ: <code style={{ background: "rgba(0,0,0,0.3)", padding: "2px 8px", borderRadius: 4, color: "#E2E8F0" }}>document.cookie</code> → Enter</li>
                 <li><strong>Copy kết quả</strong> → Paste vào trường Cookie ở đây</li>
               </ol>
-              <div style={{ marginTop: 10, fontSize: 12, color: "#64748B" }}>
-                ⚠️ Cách này chỉ lấy được cookies, không có localStorage → session có thể ngắn hơn
+              <div style={{ marginTop: 10, fontSize: 12, color: "#f87171" }}>
+                ⚠️ Cách này <strong>KHÔNG lấy được httpOnly cookies</strong> (sessionid, auth_token...) → chỉ dùng kết hợp với browser session. Khuyên dùng Cách 2 thay thế
               </div>
             </div>
 
-            {/* Cách 3: Extension */}
+            {/* Cách 4: Extension */}
             <div style={{ padding: 16, borderRadius: 10, background: "rgba(234,179,8,0.06)", border: "1px solid rgba(234,179,8,0.15)" }}>
-              <h4 style={{ margin: "0 0 10px", color: "#EAB308", fontSize: 14 }}>🧩 Cách 3: Dùng Extension &quot;EditThisCookie&quot; hoặc &quot;Cookie Editor&quot;</h4>
+              <h4 style={{ margin: "0 0 10px", color: "#EAB308", fontSize: 14 }}>🧩 Cách 4: Dùng Extension &quot;EditThisCookie&quot; hoặc &quot;Cookie Editor&quot;</h4>
               <ol style={{ margin: 0, paddingLeft: 20 }}>
                 <li>Cài extension <strong>Cookie Editor</strong> từ Chrome Web Store</li>
                 <li>Đăng nhập nền tảng → click icon extension</li>

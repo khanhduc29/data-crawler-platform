@@ -26,7 +26,6 @@ from dispatch.scan_dispatcher import dispatch_scan
 from core.captcha_solver import handle_captcha_if_present
 
 logger = setup_logger()
-SESSION_FILE = "tiktok_session.json"
 
 CRAWL_TIMEOUT = 15 * 60      # 15 phút / task
 POLL_INTERVAL = 50           # 50 giây kiểm tra 1 lần
@@ -82,7 +81,6 @@ async def main():
                         _flog(f"LAUNCH BROWSER attempt={attempt + 1}")
                         playwright, browser, context, _ = await create_browser(
                             headless=False,
-                            session_file=SESSION_FILE
                         )
                         _flog("BROWSER LAUNCHED OK")
 
