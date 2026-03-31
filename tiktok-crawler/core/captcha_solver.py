@@ -21,19 +21,19 @@ logger = setup_logger()
 ASSEMBLY_KEY = os.environ.get("ASSEMBLY_KEY", "cc9076bb512c480f994633855cfa46b4")
 MAX_CAPTCHA_ATTEMPTS = 3
 
-# Selectors cho TikTok captcha (có thể thay đổi theo version)
+# Selectors cho TikTok captcha — CHỈ dùng selector cụ thể, KHÔNG dùng wildcard
+# để tránh false positive từ hidden elements trong TikTok source
 CAPTCHA_SELECTORS = [
     "#captcha-verify-container",
     ".captcha_verify_container",
-    "[class*='captcha']",
     "#tiktok-verify-ele",
     ".verify-wrap",
+    ".captcha-verify-wrap",
 ]
 
 AUDIO_BUTTON_SELECTORS = [
     "text=Audio",
     "text=audio",
-    "[class*='audio']",
     "button:has-text('Audio')",
     ".captcha-audio-btn",
 ]
@@ -43,47 +43,57 @@ AUDIO_ELEMENT_SELECTORS = [
     "audio[src]",
     "source[src*='.mp3']",
     "source[type='audio/mpeg']",
-    "[class*='captcha'] audio",
 ]
 
 CAPTCHA_INPUT_SELECTORS = [
-    "input[type='text']",
-    "[class*='captcha'] input",
     ".captcha_verify_container input",
     "#captcha-verify-container input",
+    "#tiktok-verify-ele input",
+    ".verify-wrap input[type='text']",
 ]
 
 CAPTCHA_SUBMIT_SELECTORS = [
     "button:has-text('Verify')",
     "button:has-text('Submit')",
     "button:has-text('Xác minh')",
-    "[class*='verify'] button",
-    "[class*='captcha'] button[type='submit']",
     ".captcha_verify_container button",
+    "#captcha-verify-container button",
 ]
 
 
+async def _is_element_real_visible(el) -> bool:
+    """
+    Kiểm tra element thật sự visible trên page (có kích thước đủ lớn).
+    TikTok thường embed captcha containers ẩn với size 0x0 hoặc rất nhỏ.
+    """
+    try:
+        if not await el.is_visible():
+            return False
+        box = await el.bounding_box()
+        if not box:
+            return False
+        # Captcha dialog thật phải có chiều cao >= 50px
+        if box["height"] < 50 or box["width"] < 50:
+            return False
+        return True
+    except Exception:
+        return False
+
+
 async def detect_captcha(page) -> bool:
-    """Kiểm tra page có captcha hay không"""
+    """Kiểm tra page có captcha hay không — chỉ detect khi thật sự có captcha dialog visible"""
     for selector in CAPTCHA_SELECTORS:
         try:
             el = page.locator(selector)
             if await el.count() > 0:
-                # Double check: element phải visible
-                if await el.first.is_visible():
+                # Kiểm tra element thật sự visible VÀ có kích thước đủ lớn
+                if await _is_element_real_visible(el.first):
                     logger.info(f"🔒 CAPTCHA DETECTED (selector: {selector})")
                     return True
+                else:
+                    logger.debug(f"⏭️ Captcha selector '{selector}' found but NOT visible/too small — skipping")
         except Exception:
             continue
-
-    # Fallback: kiểm tra HTML content
-    try:
-        html = (await page.content()).lower()
-        if "captcha" in html and ("verify" in html or "puzzle" in html):
-            logger.info("🔒 CAPTCHA DETECTED (HTML content)")
-            return True
-    except Exception:
-        pass
 
     return False
 
